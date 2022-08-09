@@ -1,0 +1,48 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'app-rust-blockchain'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=app-rust-blockchain",
+                    "--package=app-rust-blockchain"
+                ],
+                "filter": {
+                    "name": "app-rust-blockchain",
+                    "kind": "bin"
+                }
+            },
+            "args": [
+                "{\"data\": \"Julian Lasso\", \"nonce\": null, \"date\": \"2022-01-01T00:00:00Z\"}",
+                "5"
+            ],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in executable 'app-rust-blockchain'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bin=app-rust-blockchain",
+                    "--package=app-rust-blockchain"
+                ],
+                "filter": {
+                    "name": "app-rust-blockchain",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        }
+    ]
+}
