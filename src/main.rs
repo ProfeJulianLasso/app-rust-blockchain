@@ -24,26 +24,32 @@ fn main() {
             let data = Arc::new(Mutex::new(String::new()));
             let hash = Arc::new(Mutex::new(String::new()));
 
-            let cores: u8 =
+            let mut cores: u8 =
                 (((num_cpus::get() * stress.parse::<usize>().unwrap()) / 100) as f32).ceil() as u8;
+            if cores == 0 {
+                cores = 1;
+            } else if cores > num_cpus::get() as u8 {
+                cores = num_cpus::get() as u8;
+            }
+
             Parallel::new()
                 .each(0..cores, |_index| {
-                    create(info, level.clone(), &nonce, &data, &hash)
+                    create(&info, &level, &nonce, &data, &hash)
                 })
                 .run();
             let duration = start.elapsed();
 
             println!("Cantidad de CPU usadas: {} - {}%", cores, stress);
-            println!("Nivel de dificultadad: {}", level);
+            println!("Nivel de dificultad: {}", level);
             println!("Nonce encontrado: {}", nonce.lock().unwrap());
             println!("Hash: {}", hash.lock().unwrap());
             println!("Datos resultantes: {}", data.lock().unwrap());
-            println!("Tiempo transcurrido: {:?}s", duration.as_secs());
+            println!("Tiempo transcurrido: {}s", duration.as_secs());
         }
         "check" => check(
-            args[2].to_string(),
-            args[3].to_string(),
-            args[4].to_string(),
+            &args[2].to_string(),
+            &args[3].to_string(),
+            &args[4].to_string(),
         ),
         _ => error_option(),
     }
@@ -58,8 +64,8 @@ fn get_flag() -> bool {
 }
 
 fn create(
-    info: String,
-    level: String,
+    info: &String,
+    level: &String,
     nonce_final: &Arc<Mutex<String>>,
     data_final: &Arc<Mutex<String>>,
     hash_final: &Arc<Mutex<String>>,
@@ -108,13 +114,13 @@ fn nonce_random() -> u32 {
     }
 }
 
-fn check(info: String, nonce: String, hash: String) {
+fn check(info: &String, nonce: &String, hash: &String) {
     let data = info.replace(
         "\"nonce\": null",
         &String::from("\"nonce\": ".to_owned() + &nonce),
     );
     let hash_confirm = blake3(&data.as_bytes());
-    if hash_confirm.to_string() == hash {
+    if hash_confirm.to_string().eq(hash) {
         println!("OK");
     } else {
         println!("ERROR");
