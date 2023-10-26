@@ -1,0 +1,6 @@
+tab_spaces = 2
+comment_width = 80
+wrap_comments = true
+fn_params_layout = "Vertical"
+match_block_trailing_comma = true
+merge_imports = true
