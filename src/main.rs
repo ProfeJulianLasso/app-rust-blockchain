@@ -13,40 +13,33 @@ use libsodium_sys::randombytes_random;
 use regex::Regex;
 
 static GLOBAL_FLAG: AtomicBool = AtomicBool::new(false);
+static COUNT_CORES_DEFAULT: u8 = 1;
 
 fn main() {
   let args: Vec<String> = env::args().collect();
 
+  // Obtiene la opción (create o check)
   let option = &args[1];
+
+  // Verifica la opción y ejecuta la función correspondiente
   match option.as_str() {
     "create" => {
+      // Inicia el cronómetro
       let start = Instant::now();
-      let info = &args[2].to_string();
-      let level = &args[3].to_string();
-      let stress = &args[4].to_string();
+
+      // Obtiene los argumentos
+      let info = &args[2];
+      let level = &args[3];
+      let stress = &args[4].parse::<usize>().unwrap();
 
       let nonce = Arc::new(Mutex::new(String::new()));
       let data = Arc::new(Mutex::new(String::new()));
       let hash = Arc::new(Mutex::new(String::new()));
 
-      let num_threads = thread::available_parallelism().unwrap().get();
-      let mut cores: u8 =
-        (((num_threads * stress.parse::<usize>().unwrap()) / 100) as f32).ceil() as u8;
-      if cores == 0 {
-        cores = 1;
-      } else if cores > num_threads as u8 {
-        cores = num_threads as u8;
-      }
+      let cores = calculate_cores_to_use(&stress);
 
       // Crea los hilos
-      // cargo add easy_parallel
-      // Parallel::new()
-      //   .each(0..cores, |_| create(&info, &level, &nonce, &data, &hash))
-      //   .run();
-
       let mut handles = vec![];
-
-      // Crea los hilos
       for _ in 0..cores {
         let info_clone = info.clone();
         let level_clone = level.clone();
@@ -69,9 +62,10 @@ fn main() {
 
       // Espera a que todos los hilos terminen
       for handle in handles {
-        handle.join().unwrap();
+        let _ = handle.join().unwrap();
       }
 
+      // Detiene el cronómetro
       let duration = start.elapsed();
 
       println!("Cantidad de CPU usadas: {} - {}%", cores, stress);
@@ -81,11 +75,7 @@ fn main() {
       println!("Datos resultantes: {}", data.lock().unwrap());
       println!("Tiempo transcurrido: {}s", duration.as_secs());
     },
-    "check" => check(
-      &args[2].to_string(),
-      &args[3].to_string(),
-      &args[4].to_string(),
-    ),
+    "check" => check(&args[2], &args[3], &args[4]),
     _ => error_option(),
   }
 }
@@ -95,7 +85,17 @@ fn set_flag_to_true() {
 }
 
 fn get_flag() -> bool {
-  return GLOBAL_FLAG.load(Ordering::SeqCst);
+  GLOBAL_FLAG.load(Ordering::SeqCst)
+}
+
+fn calculate_cores_to_use(stress: &usize) -> u8 {
+  let num_threads = thread::available_parallelism().unwrap().get();
+  let cores = (((num_threads * stress) / 100) as f32).ceil() as u8;
+  if cores > num_threads as u8 {
+    num_threads as u8
+  } else {
+    COUNT_CORES_DEFAULT
+  }
 }
 
 fn create(
@@ -104,7 +104,7 @@ fn create(
   nonce_final: &Arc<Mutex<String>>,
   data_final: &Arc<Mutex<String>>,
   hash_final: &Arc<Mutex<String>>,
-) {
+) -> Result<(), ()> {
   let mut nonce = nonce_random().to_string();
   let mut data = info.replace(
     "\"nonce\":( null|null)",
@@ -121,7 +121,7 @@ fn create(
     *nonce_final.lock().unwrap() = nonce;
     *data_final.lock().unwrap() = data;
     *hash_final.lock().unwrap() = hash.to_string();
-    return;
+    return Ok(());
   }
 
   while option == false && get_flag() == false {
@@ -138,15 +138,15 @@ fn create(
       *nonce_final.lock().unwrap() = nonce;
       *data_final.lock().unwrap() = data;
       *hash_final.lock().unwrap() = hash.to_string();
-      return;
+      return Ok(());
     }
   }
+
+  Err(())
 }
 
 fn nonce_random() -> u32 {
-  unsafe {
-    return randombytes_random();
-  }
+  unsafe { randombytes_random() }
 }
 
 fn check(
