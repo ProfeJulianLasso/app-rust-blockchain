@@ -1,11 +1,15 @@
 use blake3::hash as blake3;
-use easy_parallel::Parallel;
 use libsodium_sys::randombytes_random;
 use regex::Regex;
-use std::env;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
-use std::time::Instant;
+use std::{
+    env,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        {Arc, Mutex},
+    },
+    thread,
+    time::Instant,
+};
 
 static GLOBAL_FLAG: AtomicBool = AtomicBool::new(false);
 
@@ -24,19 +28,49 @@ fn main() {
             let data = Arc::new(Mutex::new(String::new()));
             let hash = Arc::new(Mutex::new(String::new()));
 
+            let num_threads = thread::available_parallelism().unwrap().get();
             let mut cores: u8 =
-                (((num_cpus::get() * stress.parse::<usize>().unwrap()) / 100) as f32).ceil() as u8;
+                (((num_threads * stress.parse::<usize>().unwrap()) / 100) as f32).ceil() as u8;
             if cores == 0 {
                 cores = 1;
-            } else if cores > num_cpus::get() as u8 {
-                cores = num_cpus::get() as u8;
+            } else if cores > num_threads as u8 {
+                cores = num_threads as u8;
             }
 
-            Parallel::new()
-                .each(0..cores, |_index| {
-                    create(&info, &level, &nonce, &data, &hash)
-                })
-                .run();
+            // Crea los hilos
+            // cargo add easy_parallel
+            // Parallel::new()
+            //     .each(0..cores, |_| create(&info, &level, &nonce, &data, &hash))
+            //     .run();
+
+            let mut handles = vec![];
+
+            // Crea los hilos
+            for _ in 0..cores {
+                let info_clone = info.clone();
+                let level_clone = level.clone();
+                let nonce_clone = Arc::clone(&nonce);
+                let data_clone = Arc::clone(&data);
+                let hash_clone = Arc::clone(&hash);
+
+                let handle = thread::spawn(move || {
+                    create(
+                        &info_clone,
+                        &level_clone,
+                        &nonce_clone,
+                        &data_clone,
+                        &hash_clone,
+                    )
+                });
+
+                handles.push(handle);
+            }
+
+            // Espera a que todos los hilos terminen
+            for handle in handles {
+                handle.join().unwrap();
+            }
+
             let duration = start.elapsed();
 
             println!("Cantidad de CPU usadas: {} - {}%", cores, stress);
@@ -72,7 +106,7 @@ fn create(
 ) {
     let mut nonce = nonce_random().to_string();
     let mut data = info.replace(
-        "\"nonce\": null",
+        "\"nonce\":( null|null)",
         &String::from("\"nonce\": ".to_owned() + &nonce),
     );
     let mut hash = blake3(&data.as_bytes());
